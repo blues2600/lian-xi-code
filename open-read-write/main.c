@@ -12,6 +12,18 @@
  * 4.添加一个命令参数，在文件结尾处追加内容
  */
 
+/*  经验总结
+ *
+ *  清空输入和输出缓冲区
+    清空输出就是将缓冲区的内容现在全部输出
+    fflush(stdout);
+    int c;
+    while((c = getchar()) != '\n' && c != EOF);
+
+
+
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,16 +47,10 @@ int main(int argc, char *argv[])
     }
 
     char buf[BUF_SIZE];
-    //清空输入和输出缓冲区
-    //清空输出就是将缓冲区的内容现在全部输出
-    //fflush(stdout);
-    //int c;
-    //while((c = getchar()) != '\n' && c != EOF);
-
     printf("enter your data:");
     fflush(stdout);
     get_data_from_stdin(buf);
-    printf("the data:%s", buf);
+    //printf("the data:%s", buf);
 
     if (argc == 3 && strcmp(argv[1], "-a") == 0)
         write_file_append(argv[2], buf, strlen(buf));
@@ -77,7 +83,8 @@ int write_file_append(char *filename, char *buf, size_t n)
 int write_file(char *newfile, char *buf, size_t n)
 {
     //新建文件
-    int fd = open(newfile, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU | S_IRUSR | S_IRGRP | S_IROTH);
+    int fd = open(newfile, O_WRONLY | O_CREAT | O_TRUNC,
+                  S_IRWXU | S_IRUSR | S_IRGRP | S_IROTH);
     if (fd == -1) {
         printf("open() failed, %s\n", strerror(errno));
         return 0;
