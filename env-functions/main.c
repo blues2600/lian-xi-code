@@ -13,9 +13,6 @@
 /* 任务1，mysetenv，设置或修改环境变量
  */
 
-//#define _BSD_SOURCE
-//#define _GNU_SOURCE
-//#define _SVID_SOURCE
 #define _DEFAULT_SOURCE
 
 #include <stdio.h>
@@ -26,6 +23,7 @@
 
 extern char **environ;
 int mySetenv(const char *name, const char *value, int overwrite);
+int myUnsetenv(const char *name);
 
 char name_and_value[255];
 
@@ -33,8 +31,9 @@ int main(int argc, char *argv[])
 {
     const char *name = "TEST";
     const char *value = "456";
-    if (!mySetenv(name, value, 1))
-        printf("the env is:%s\n",getenv(name));
+
+    mySetenv(name, value, 1);
+    myUnsetenv(name);
     return 0;
 }
 
@@ -73,5 +72,24 @@ int mySetenv(const char *name, const char *value, int overwrite)
     }
 
 SUCCESS:
+    return 0;
+}
+
+// 从环境变量中删除一个变量
+// 如果名称在环境中不存在，则函数成功，环境不变
+// 函数会检查每个同名的环境变量，将它们每个对应的value都清空
+// 永远返回0
+int myUnsetenv(const char *name)
+{
+    char *env_value;
+
+    while (1) {
+        env_value = getenv(name);
+        if (*env_value == 0x0)
+            break;
+        else
+            memset(env_value, 0, strlen(env_value));
+    }
+
     return 0;
 }
