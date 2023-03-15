@@ -164,6 +164,21 @@ int get_real_uid(char *buf, int *uid)
     return 0;
 }
 
+// 为了解决读取到/proc/pid/cmdline文件中的命令行参数问题
+// 参数的后面包含的0x0字符（它会导致printf停止输出后续的内容）
+// 例如ls -l
+// printf在输出read接收到的数据时，会直接输出ls，而抛弃-l
+// 为了解决这个问题，函数设定，当它遇到一个单独的0x0字节，则将它换成空格（0x20）
+// 当如果有两个或两个以上连续的0x0字节，则不改动
+void clear_zero(char *buf,int len)
+{
+    for(int i=0;i<len;i++)
+    {
+        if(buf[i] == 0x0 && buf[i+1] != 0x0)
+            buf[i] = 0x20;
+    }
+}
+
 int main(int argc, char *argv[])
 {
     uid_t userID;
@@ -240,6 +255,7 @@ int main(int argc, char *argv[])
             cmdline_fd = open_onlyread(cmdline_path);
             read_file(cmdline_fd,cmdlineContent,CONTENT_MAX_LEN);
             printf("pid %s cmdline:\n", nextDir->d_name);
+            clear_zero(cmdlineContent,CONTENT_MAX_LEN);
             printf("%s\n",cmdlineContent);
             printf("\n\n");
         }
