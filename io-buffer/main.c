@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
     int buf_size = read_file(fd, buf, BUFFER_SIZE);
 
     // 计算buf里有几行数据
-    num_cur = how_many_line(buf, BUFFER_SIZE);
+    num_cur = how_many_line(buf, buf_size);
 
     //堆内存分配次数
     buf_cur = buf;
