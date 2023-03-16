@@ -76,12 +76,13 @@ void lseek_start(int fd)
     }
 }
 
-// 返回当前文件指针的位置
+// 获得当前文件指针的位置
+// 成功返回pos位置，否则程序退出
 int cur_pos(int fd)
 {
     if (fd <= 0) {
         printf("cur_pos(): error fd.\n");
-        return 0;
+        exit(EXIT_FAILURE);
     }
 
     off_t curpos = lseek(fd, 0, SEEK_CUR);
@@ -93,6 +94,7 @@ int cur_pos(int fd)
     return curpos;
 }
 
+// 读取文件内容到缓冲区
 // 读取fd中len个字节的内容到buf
 // 成功返回读取的字节数，失败返回非0
 int read_file(int fd, char *buf, int len)
@@ -113,38 +115,48 @@ int read_file(int fd, char *buf, int len)
     return num;
 }
 
+// 作废，不好用
 // buf是存储数据的缓冲器，limt为换行符集合
 // 函数计算buf中总共有几行
 // 成功返回行数，失败返回0，并打印错误信息
-int how_many_line(char *buf, const char limt[])
-{
-    int retval = 0;
-    char *token = strtok(buf, limt);
-
-    if (token == NULL) {
-        printf("how_many_line() failed.\n");
-        return 0;
-    }
-
-    while (token != NULL) {
-        retval++;
-        token = strtok(NULL, limt);
-    }
-
-    return retval;
-}
-
+//int how_many_line(char *buf, const char limt[])
+//{
+//    int retval = 0;
+//    char *token = strtok(buf, limt);
 //
-int how_many_line2(char *buf, int len)
+//    if (token == NULL) {
+//        printf("how_many_line() failed.\n");
+//        return 0;
+//    }
+//
+//    while (token != NULL) {
+//        retval++;
+//        token = strtok(NULL, limt);
+//    }
+//
+//    return retval;
+//}
+
+// 计算数据块中有几个换行符
+// 逐个字节扫描0x0/0xA/0xD
+// 返回换行符数量，失败返回-1
+int how_many_line(char *buf, int len)
 {
+    if (buf == NULL || len <= 0) {
+        printf("how_many_line() failed, buf is null or len <= 0\n");
+        return -1;
+    }
+
     int line = 0;
     for (int i = 0; i < len; i++) {
         if (buf[i] == 0x0 || buf[i] == 0xA || buf[i] == 0xD)
             line++;
     }
-    return line + 1;
+    return line;
 }
 
+// 作废，不好用
+// 打印一个数据块中的最后N行
 // 打印buf中的最后n行数据，换行符集合在limt中，lines是buf中现有行数
 // 成功返回非0，失败返回0，并输出错误信息
 int print_last_lines(char *buf, const char limt[], int n, int lines)
@@ -169,36 +181,42 @@ int print_last_lines(char *buf, const char limt[], int n, int lines)
 }
 
 // 向stdout输出数据块
-// 成功返回输出的字节数，失败返回0
+// 对write的封装
+// 成功返回输出的字节数，失败返回-1
 int write_data(int *buf, size_t len)
 {
     ssize_t number = write(STDOUT_FILENO, buf, len);
     if (number == -1) {
         printf("write() failed in write_data(), %s\n", strerror(errno));
-        return 0;
+        return -1;
     } else
         return number;
 }
 
-// 输出一个数据块，如果数据块中包含了换行，那就分成多行输出
+// 输出一个数据块中的最后n行
 // 每一个换行符(0x0/0xA/0xD)都会导致输出换行
+// 如果buf为NULL或len<=0，函数打印错误消息
 void print_block(char *buf, int len, int n)
 {
     char *head = buf;
     char *end = NULL;
 
+    //参数检查
+    if (buf == NULL || len <= 0)
+        printf("print_block() failed, buf is null or len <= 0.\n");
+
     //计算数据块有几行
-    int lines = how_many_line2(buf, len);
+    int lines = how_many_line(buf, len);
 
     for (int i = 0; i < len; i++) {
         if (buf[i] == 0x0 || buf[i] == 0xA || buf[i] == 0xD) {
             end = buf + i;
             lines--;
-            if (lines <= n) {
+            if (lines <= n - 1) {
                 if (*head == 0xa)
                     printf("\n");
-                else{
-                    printf("%s\n", head); //printf的行为很奇怪
+                else {
+                    printf("%s\n", head);
                     break;
                 }
             }
@@ -207,7 +225,8 @@ void print_block(char *buf, int len, int n)
     }
 }
 
-// 获取文件(文件已经open)字节数
+// 获取文件的字节数
+// 文件必须已经打开
 // 成功返回非0，失败返回0
 int file_size(const int fd)
 {
@@ -230,7 +249,6 @@ int main(int argc, char *argv[])
     int num_user;
     int num_cur = 0;
     int fd = -1;
-    //const char limt[] = "\xA\xD\x0";
     char *buf_cur = NULL;
     char *buf_new = NULL;
 
@@ -263,9 +281,9 @@ int main(int argc, char *argv[])
 
     //从文件读取内容到buf
     int buf_size = read_file(fd, buf, BUFFER_SIZE);
-    //num_cur = how_many_line(buf, limt);              //计算buf里有几行
+
     // 计算buf里有几行数据
-    num_cur = how_many_line2(buf, BUFFER_SIZE);
+    num_cur = how_many_line(buf, BUFFER_SIZE);
 
     //堆内存分配次数
     buf_cur = buf;
@@ -273,9 +291,9 @@ int main(int argc, char *argv[])
 
     // 检查buf里的内容能否满足用户要求的行数
     while (num_cur <= num_user) {
+        // 将现有buf内存扩充BUFFER_SIZE大小
         malloc_count++;
-        buf_new = malloc(BUFFER_SIZE *
-                         malloc_count);  //在原buf基础上扩充BUFFER_SIZE个字节
+        buf_new = malloc(BUFFER_SIZE * malloc_count);
         if (buf_new == NULL) {
             printf("malloc() failed.\n");
             free(buf_cur);
@@ -285,25 +303,25 @@ int main(int argc, char *argv[])
         buf_cur = buf_new;
 
         // 将文件指针移动到适当的位置
+        // 如果文件字节数小于buf，则从文件开头读取整个文件
+        // 否则从文件末尾向前移动N个字节
         if (file_size(fd) > BUFFER_SIZE * malloc_count) {
             lseek_end(fd);
             lseek(fd, -(BUFFER_SIZE * malloc_count), SEEK_CUR);  //向前移动
-        } else {
-            lseek_start(fd);  //文件小于BUFFER_SIZE，移动到文件开头
-            buf_size =
-                read_file(fd, buf_cur,
-                          BUFFER_SIZE * malloc_count);  //从文件读取内容到buf
-            break;
-        }
+        } else
+            lseek_start(fd);
 
-        buf_size = read_file(fd, buf_cur,
-                             BUFFER_SIZE * malloc_count);  //从文件读取内容到buf
+        // 从文件读取数据到buf
+        buf_size = read_file(fd, buf_cur, BUFFER_SIZE * malloc_count);
+
+        // 计算当前buf中有几行内容
+        num_cur = how_many_line(buf, BUFFER_SIZE * malloc_count);
     }
 
-   // 在堆里存储的数据，如果里面包含了换行字符中的任何一个
-    // 在调用strtok之前调用了stdio函数，那么strtok就会不起作用
-    // 表现为，它会将第一个换行字符前的数据认为是整个字符串
+    // 输出buf中的最后N行数据
     print_block(buf_cur, buf_size, num_user);
+
     free(buf_cur);
+    close(fd);
     return 0;
 }
