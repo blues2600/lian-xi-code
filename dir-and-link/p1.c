@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
         // 修改进程当前目录，跳到上级目录去
         MyChdir("../");
 
-        // 查找匹配的目录
+        // 查找设备ID和I节点匹配的目录
         if (!FindDir(&workdir_fileinfo, current)) {
             strcpy(temp, "/");
             strcat(temp, current);
@@ -222,6 +222,7 @@ int main(int argc, char *argv[])
             return 0;
         }
 
+        // 重置工作目录信息
         GetFileInfo(".", &workdir_fileinfo);
     }
 
