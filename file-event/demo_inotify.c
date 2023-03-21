@@ -27,10 +27,13 @@
 static void             /* Display information from inotify_event structure */
 displayInotifyEvent(struct inotify_event *i)
 {
+    // 监视描述符
     printf("    wd =%2d; ", i->wd);
+    // 用于同步两个事件的cookie
     if (i->cookie > 0)
         printf("cookie =%4d; ", i->cookie);
 
+    // 打印事件类型
     printf("mask = ");
     if (i->mask & IN_ACCESS)        printf("IN_ACCESS ");
     if (i->mask & IN_ATTRIB)        printf("IN_ATTRIB ");
@@ -50,6 +53,7 @@ displayInotifyEvent(struct inotify_event *i)
     if (i->mask & IN_UNMOUNT)       printf("IN_UNMOUNT ");
     printf("\n");
 
+    // 打印事件消息
     if (i->len > 0)
         printf("        name = %s\n", i->name);
 }
@@ -59,22 +63,28 @@ displayInotifyEvent(struct inotify_event *i)
 int
 main(int argc, char *argv[])
 {
-    int inotifyFd, wd, j;
+
+    int inotifyFd, wd, j;   //文件描述符
+                            //双括号是attribute的参数
+                            //变量8字节对齐
     char buf[BUF_LEN] __attribute__ ((aligned(8)));
     ssize_t numRead;
     char *p;
-    struct inotify_event *event;
+    struct inotify_event *event; //事件指针
 
     if (argc < 2 || strcmp(argv[1], "--help") == 0)
         usageErr("%s pathname...\n", argv[0]);
 
-    inotifyFd = inotify_init();                 /* Create inotify instance */
+    inotifyFd = inotify_init();                 /* 新建一个监控实例 */
     if (inotifyFd == -1)
         errExit("inotify_init");
 
     /* For each command-line argument, add a watch for all events */
 
     for (j = 1; j < argc; j++) {
+
+        // 监控各个参数（文件名、目录），监控类型：所有输出事件
+        // 返回监控描述符
         wd = inotify_add_watch(inotifyFd, argv[j], IN_ALL_EVENTS);
         if (wd == -1)
             errExit("inotify_add_watch");
@@ -83,7 +93,8 @@ main(int argc, char *argv[])
     }
 
     for (;;) {                                  /* Read events forever */
-        numRead = read(inotifyFd, buf, BUF_LEN);
+        numRead = read(inotifyFd, buf, BUF_LEN); //从监控实例读取事件消息
+                                                 //没有任何消息
         if (numRead == 0)
             fatal("read() from inotify fd returned 0!");
 
@@ -94,10 +105,14 @@ main(int argc, char *argv[])
 
         /* Process all of the events in buffer returned by read() */
 
+        // 限定监控消息的范围
         for (p = buf; p < buf + numRead; ) {
+
+            // 从char指针抽取事件结构数据
             event = (struct inotify_event *) p;
             displayInotifyEvent(event);
 
+            // 指向下一个事件消息结构数据
             p += sizeof(struct inotify_event) + event->len;
         }
     }
