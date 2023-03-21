@@ -217,7 +217,6 @@ int GetDirFd(char *filename)
 int main(int argc, char *argv[])
 {
     FileInfo workdir;
-    memset(&workdir, 0, sizeof(FileInfo));
     char current[NAME_MAX + 1] = {'\0'};
     char temp[NAME_MAX + 1] = {'\0'};
     char complete_dir[NAME_MAX + 1] = {'\0'};
