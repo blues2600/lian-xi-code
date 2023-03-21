@@ -124,6 +124,21 @@ int MyChdir(const char *path)
     return retval;
 }
 
+// 改变进程的当前工作目录
+// 对fchdir的封装
+// 成功返回0，失败输出错误提示并退出程序
+int MyFchdir(int fd)
+{
+    int retval = fchdir(fd);
+
+    if (retval == -1) {
+        printf("fchdir() failed in MyFchdir(), %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    return retval;
+}
+
 // 比较两个FileInfo变量是否相等
 // 本质上是比较设备号和i节点是否相等
 // 相等返回0，否则返回非0
@@ -186,13 +201,27 @@ bool IsRoot()
     return false;
 }
 
+// 打开一个目录，得到它的文件描述符
+// 成功返回fd，失败退出程序并打印错误消息
+int GetDirFd(char *filename)
+{
+    int fd = open(filename, O_DIRECTORY);
+    if (fd == -1) {
+        printf("open() failed, %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    return fd;
+}
+
 int main(int argc, char *argv[])
 {
-    FileInfo workdir_fileinfo;
-    memset(&workdir_fileinfo, 0, sizeof(FileInfo));
+    FileInfo workdir;
+    memset(&workdir, 0, sizeof(FileInfo));
     char current[NAME_MAX + 1] = {'\0'};
     char temp[NAME_MAX + 1] = {'\0'};
     char complete_dir[NAME_MAX + 1] = {'\0'};
+    int fd = -1;
 
     if (argc > 1) {
         printf("useage: app\n");
@@ -200,16 +229,18 @@ int main(int argc, char *argv[])
     }
 
     // 获取进程工作目录的i节点和设备号
-    GetFileInfo(".", &workdir_fileinfo);
-    // 测试文件信息是否正确
-    //printf("当前工作目录的设备ID=%ld,i节点=%ld\n", (long)major(workdir_fileinfo.st_dev), (long)workdir_fileinfo.st_ino);
+    GetFileInfo(".", &workdir);
+    /* 测试文件信息是否正确
+    printf("当前工作目录的设备ID=%ld,i节点=%ld\n", (long)major(workdir.st_dev),
+           (long)workdir.st_ino);
+     */
 
     while (1) {
         // 修改进程当前目录，跳到上级目录去
         MyChdir("../");
 
         // 查找设备ID和I节点匹配的目录
-        if (!FindDir(&workdir_fileinfo, current)) {
+        if (!FindDir(&workdir, current)) {
             strcpy(temp, "/");
             strcat(temp, current);
             strcat(temp, complete_dir);
@@ -219,12 +250,20 @@ int main(int argc, char *argv[])
         // 到了根目录
         if (IsRoot()) {
             printf("the current dir:%s\n", complete_dir);
+
+            // 回到进程最初工作目录
+            fd = GetDirFd(complete_dir);
+            MyFchdir(fd);
             return 0;
         }
 
         // 重置工作目录信息
-        GetFileInfo(".", &workdir_fileinfo);
+        GetFileInfo(".", &workdir);
     }
+
+    // 回到进程最初工作目录
+    fd = GetDirFd(complete_dir);
+    MyFchdir(fd);
 
     printf("can not find pwd\n");
     return 0;
