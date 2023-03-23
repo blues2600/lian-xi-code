@@ -272,6 +272,8 @@ void DeleteElement(int watchfd)
 
     // 判断是不是链表的第一个条目
     if (element == first) {
+        if(element->next == NULL)   //链表只有一个条目
+            goto FREE;
         temp = element->next;   //temp指向下一个条目
         temp->previous = NULL;  //下一个条目成为链表第一个条目
         first = temp;           //重置first
