@@ -36,6 +36,14 @@
  *
  */
 
+/*
+ * 总结：
+ * 1.这个程序要入门，就得先理解inotify机制，这个相对容易
+ * 2.比较繁琐或者有难度的是对inotify机制细节的理解，要深入理解inotify机制会很费时间
+ * 3.本程序的bug基本出现在对数据的操作上，对于链表的把握还比较欠缺
+ * 4.对自己目前的调试和拍错能力感到满意
+ */
+
 #define _XOPEN_SOURCE 500
 
 #include <stdio.h>
@@ -66,7 +74,6 @@ typedef struct path_watchfd_table {
 int inotify_fd = -1;           //监控程序实例的文件描述符
 PathWatchTable *first = NULL;  //指向路径-监控描述符表的第一个条目
 PathWatchTable *end = NULL;  //指向路径-监控描述符表的最后一个条目
-//PathWatchTable *current = NULL;  //指向路径-监控描述符表的当前条目
 
 // 新建一个inotify监控实例
 // 对inotify_init()的封装
@@ -154,12 +161,6 @@ int WatchAdd(const char *fpath, const struct stat *sb, int typeflag,
         //current = new;
     } else {  //不是表中的第一个条目
         // 初始化条目内容
-        /*current->next = new;      //上个条目的下个条目是自己
-        new->previous = current;  //新条目的上个条目其实是当前条目
-        new->next = NULL;
-        strcpy(new->path, fpath);  //在表中初始化文件路径
-        new->watchfd = fd;         //在表中初始化监控描述符
-        */
         end->next = new;
         new->previous = end;
         new->next = NULL;
@@ -167,7 +168,6 @@ int WatchAdd(const char *fpath, const struct stat *sb, int typeflag,
         new->watchfd = fd;
 
         // 重设链表
-        //current = new;  //当前条目更新
         end = new;      //末尾条目更新
     }
 
