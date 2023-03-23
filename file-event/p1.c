@@ -36,51 +36,6 @@
  *
  */
 
-/*
- * 子目录修改后，监控范围的调整
- * 1.从inotify_add_watch()的行为可知，路径（它描述了一个对象）对应着监控描述符（也描述了一个对象）
- * 2.inotify机制中的监控范围无法可视化修改，只能建立   路径 --- 描述符   表来将被监控对象和inotify机制联系起来
- * 3.这就要求，任何监控范围的变动，都意味着上表的变动
- *
- * 目录添加--和它所带来的变动
- * 1.目录添加，意味着增加监控范围
- * 2.监控范围增加，则路径-描述符对应表的内容增加
- * 3.为了监控新增目录下的子目录和文件，需要再次启用nftw遍历机制
- *
- * 目录删除--和它所带来的变动
- * 1.目录删除，意味着减少监控范围
- * 2.监控范围的减少，则路径-描述符对应表的内容减少
- * 3.当路径-描述符对应表中的路劲字段中包含被删除目录，则该监控描述符删除inotify_rm_watch()
- * 4.之后，路径-描述符对应表的条目删除
- *
- */
-
-/*
- * inotify事件解析
- *
- * IN_CREATE ● ● 在受监控目录内创建了文件/目录
- * IN_DELETE ● ● 在受监控目录内删除文件/目录（这个不使用，与delete_self重合
- * IN_DELETE_SELF ● ● 删除受监控目录/文件本身
- * 重命名受监控对象时，发生 IN_MOVE_SELF 事件
- * IN_DONT_FOLLOW ● 不对符号链接解引用（始于 Linux 2.6.15）
- */
-
-/*
- * 程序设计 - 功能分组（大块）
- * 1.新建一个监控示例
- * 2.添加一个监控对象（注意添加IN_DONT_FOLLOW）
- * 3.存储路径 - 描述符表的数据结构
- * 4.向路径- 描述符表添加条目
- * 5.从路径- 描述符表删除条目
- * 6.删除一个监控对象
- * 7.从一个监控实例读取监控事件消息
- * 8.输出监控事件消息
- * 9.遍历目录树
- * 10.文件新增处理 - IN_CREATE事件描述了新文件（新文件添加到监控范围，添加路径-描述符表条目）
- * 11.目录新增处理 - IN_CREATE事件描述了新目录（新目录添加到监控范围，添加路径-描述符表条目）
- * 12.文件删除处理 - IN_DELETE_SELF事件发生，被删除文件/目录移除监控范围，删除路径-描述符表条目
- */
-
 #define _XOPEN_SOURCE 500
 
 #include <stdio.h>
@@ -95,32 +50,23 @@
 #include <sys/inotify.h>
 #include <unistd.h>
 
-//limit.h里面的PATH_MAX太大了
-#define MY_PATH_MAX 256
+//limits.h里面的PATH_MAX太大了
+#define MY_PATH_MAX 512
 #define BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
-
-typedef struct file_info {
-    dev_t st_dev; /* 包含文件的设备ID */
-    ino_t st_ino; /* 索引节点号 */
-} FileInfo;
 
 // 路径-监控描述符表
 typedef struct path_watchfd_table {
     struct path_watchfd_table *previous;
     char path[MY_PATH_MAX];
     int watchfd;
-    //
-    FileInfo fi;
-    //
     struct path_watchfd_table *next;
-
 } PathWatchTable;
 
 // 全局变量
 int inotify_fd = -1;           //监控程序实例的文件描述符
 PathWatchTable *first = NULL;  //指向路径-监控描述符表的第一个条目
 PathWatchTable *end = NULL;  //指向路径-监控描述符表的最后一个条目
-PathWatchTable *current = NULL;  //指向路径-监控描述符表的当前条目
+//PathWatchTable *current = NULL;  //指向路径-监控描述符表的当前条目
 
 // 新建一个inotify监控实例
 // 对inotify_init()的封装
@@ -165,23 +111,6 @@ int MyInotifyAdd(int fd, const char *path, uint32_t mask)
     return watch_fd;
 }
 
-// 作废
-// 为路径-描述符表扩充堆内存
-// 成功返回新内存指针，同时参数1非法化
-// 失败则退出程序，并输出错误消息
-PathWatchTable *ExpandTable(PathWatchTable *ptr, size_t newsize)
-{
-    PathWatchTable *new = NULL;
-
-    new = realloc(ptr, newsize);
-    if (new == NULL) {
-        printf("realloc() failed in ExpandTable().\n");
-        exit(EXIT_FAILURE);
-    }
-
-    return new;
-}
-
 // 分配一个PathWatchTable类型大小的堆内存
 // 堆malloc的简单封装
 // 成功返回新内存指针，失败退出程序，并输出错误提示
@@ -222,17 +151,23 @@ int WatchAdd(const char *fpath, const struct stat *sb, int typeflag,
         // 重设链表
         first = new;  // 因为是第一个条目，所以理所当然
         end = new;    //因为是第一个条目，所以end也是自己
-        current = new;
+        //current = new;
     } else {  //不是表中的第一个条目
         // 初始化条目内容
-        current->next = new;      //上个条目的下个条目是自己
+        /*current->next = new;      //上个条目的下个条目是自己
         new->previous = current;  //新条目的上个条目其实是当前条目
         new->next = NULL;
         strcpy(new->path, fpath);  //在表中初始化文件路径
         new->watchfd = fd;         //在表中初始化监控描述符
+        */
+        end->next = new;
+        new->previous = end;
+        new->next = NULL;
+        strcpy(new->path, fpath);
+        new->watchfd = fd;
 
         // 重设链表
-        current = new;  //当前条目更新
+        //current = new;  //当前条目更新
         end = new;      //末尾条目更新
     }
 
@@ -276,6 +211,14 @@ PathWatchTable *TableQuery(int fd)
             return NULL;
         }
         p = temp->next;  //指向链表下一个节点
+        if(p == NULL)
+        {
+            printf("end=%p\n",end);
+            printf("temp=%p\n",temp);
+            printf("watchfd=%d\n",temp->watchfd);
+            printf("temp=%s\n",temp->path);
+            exit(EXIT_FAILURE);
+        }
         temp = p;
     }
 }
@@ -302,9 +245,6 @@ int PrintInotifyEventData(struct inotify_event *p)
     }
 
     // 当前被监控文件发生内容更新时，也会产生IN_CREATE事件
-    // 同时，事件的name字段内容为:4913
-    // 而出现真正的新建文件时，也产生IN_CREATE事件
-    // 同时，事件的name字段内容为文件名称
 
     // 查询路径-描述符表，输出事件关联的文件路径
     element = TableQuery(p->wd);
@@ -349,14 +289,6 @@ void DeleteElement(int watchfd)
     temp->next = element->next;          //上个条目与下个条目链接
     temp = element->next;                //temp指向下一个条目
     temp->previous = element->previous;  //下个条目和上个条目链接
-
-    /*
-    //测试element指向的地址是否为malloc分配
-    printf("123\n");
-    printf("previous =%p\n",element->previous);
-    printf("path=%s\n",element->path);
-    printf("wd=%d\n",element->watchfd);
-    printf("next=%p\n",element->next);*/
 
 FREE:
     free(element);
@@ -455,14 +387,6 @@ void EventProcessAdd(struct inotify_event *event)
     WatchAdd(newfile, NULL, 0, NULL);
 }
 
-// 监控事件处理函数 - 文件重命名
-void EventProcessRename(struct inotify_event *event)
-{
-    //一种情况是移动到了其他地方
-    //一种清空是文件没有移动只是改名
-    //这里只处理文件不移动，只更名
-}
-
 // 监控事件处理函数
 // 例如当发生文件删除事件时，对应的监控范围和路径描述符表都会被删除
 void EventProcess(struct inotify_event *event)
@@ -482,7 +406,8 @@ void EventProcess(struct inotify_event *event)
     }
 
     if (event->mask & IN_MOVE_SELF)  //文件重命名
-        printf("[*] The file has been renamed, but the current function cannot track the new name of the file (event->name cannot get the new file name)\n");
+        printf(
+            "[*] The file has been renamed, but the current function cannot track the new name of the file (event->name cannot get the new file name)\n");
 }
 
 // 输出监控事件消息
@@ -533,9 +458,8 @@ int main(int argc, char *argv[])
     for (;;) {
         numRead = ReadEventMsg(inotify_fd, msg, BUF_LEN);  //读取
         if (numRead != 0)                                  //若读取ok
-            DisplayEventMsg(msg,
-                            numRead);  //输出监控事件消息并根据事件内容做出反应
+            DisplayEventMsg(msg,numRead);  //输出监控事件消息并根据事件内容做出反应
     }
-    // 要记得free掉malloc的堆内存
+
     return 0;
 }
