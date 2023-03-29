@@ -6,7 +6,7 @@ CC = gcc
 FLAGS = -Wall -Werror -g
 
 #生成文件名和生成所需要的文件
-app: O_APPEND-FLAG.c
+app: p3.c
 	${CC} -o $@ $^ ${FLAGS}
 
 #如果生成的文件名修改了，下面的文件名也需要修改
