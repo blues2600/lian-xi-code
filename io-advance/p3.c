@@ -61,11 +61,25 @@ struct iovec* IOVectorMalloc(const int amount, const int length) {
     return array;
 }
 */
-/*
-ssize_t MyReadv(int fd, const struct iovec *iov, int iovcnt)
-{
+
+ssize_t MyReadv(int fd, struct iovec* iov, int iovcnt) {
+    ssize_t bytes_read = -1;
+    ssize_t total = 0;
+
+    for (int i = 0; i < iovcnt; i++) {
+        bytes_read = read(fd, iov->iov_base, iov->iov_len);
+        total += bytes_read;
+        if (bytes_read < iov->iov_len || bytes_read == 0)  // 到文件尾了
+            break;
+        if (bytes_read == -1 && errno == EINTR)  // 被信号中断
+            printf("read() was interrupted\n");
+        if (bytes_read == -1)  // 出错
+            return -1;
+        iov++;
+    }
+
+    return total;
 }
-*/
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -73,11 +87,14 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    int amount = atoi(argv[1]);
-    int length = atoi(argv[2]);
+    int amount = atoi(argv[1]);  // 数组元素数量
+    int length = atoi(argv[2]);  // 元素buf的长度
+    int fd = -1;
 
     // 为缓冲区本身分配内存，采用一次性分配的策略
     char* buf = (char*)malloc(amount * length);
+    char* const backup_buf = buf;
+    memset(buf, 0, amount * length);
     if (buf == NULL) {
         printf("malloc() failed.\n");
         exit(EXIT_FAILURE);
@@ -85,6 +102,7 @@ int main(int argc, char* argv[]) {
 
     // 为iovec数组分配内存
     struct iovec* array = (struct iovec*)malloc(amount * sizeof(struct iovec));
+    struct iovec* const backup_array = array;
     if (array == NULL) {
         printf("malloc() failed.\n");
         exit(EXIT_FAILURE);
@@ -95,19 +113,26 @@ int main(int argc, char* argv[]) {
         array->iov_base = buf;
         array->iov_len = length;
         buf += length;
+        array++;
     }
 
+    fd = open("./test.txt", O_RDONLY);
+    if (fd == -1) {
+        printf("open() failed, %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    array = backup_array;
+    if (MyReadv(fd, array, amount) == -1) {
+        printf("MyReadv() failed, %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    printf("\n%s\n", backup_buf);
+
+    free(backup_buf);
+    free(backup_array);
+    close(fd);
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
 
