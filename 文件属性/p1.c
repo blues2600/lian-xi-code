@@ -60,9 +60,7 @@ int main(int argc, char* argv[]) {
             old_permissions & S_IXOTH)
             old_permissions = old_permissions | S_IXUSR | S_IXGRP | S_IXOTH;
 
-        new_permissions = old_permissions | S_IRUSR | S_IRGRP | S_IROTH;
-    } else
-        new_permissions = old_permissions | S_IRUSR | S_IRGRP | S_IROTH;
+    new_permissions = old_permissions | S_IRUSR | S_IRGRP | S_IROTH;
 
     if (chmod(argv[1], new_permissions)) {
         printf("chmod() failed, %s\n", strerror(errno));
