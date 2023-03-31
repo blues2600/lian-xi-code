@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
 
     old_permissions = file.st_mode;
 
-    if (S_ISDIR(file.st_mode)) {
+    if (S_ISDIR(file.st_mode))
         // 任意用户对目录具备执行权限，则所有用户对目录都赋予执行权限
         if (old_permissions & S_IXUSR || old_permissions & S_IXGRP ||
             old_permissions & S_IXOTH)
