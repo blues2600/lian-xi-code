@@ -12,11 +12,10 @@
 
    Header file for error_functions.c.
 */
-#ifndef ERROR_FUNCTIONS_H
-#define ERROR_FUNCTIONS_H
 
 
-// 在标准错误输出信息，但不退出
+// 在标准错误设备上打印当前 errno 值相对应的错误文本
+// 其中包括了错误名（比如，EPERM）以及由 strerror()返回的错误描述
 void errMsg(const char *format, ...);
 
 #ifdef __GNUC__
@@ -30,8 +29,8 @@ void errMsg(const char *format, ...);
 #define NORETURN
 #endif
 
-// 在标准错误输出信息，但退出，可生成核心转储
-// 若将环境变量 EF_DUMPCORE 定义为非空字符串
+// errExit()函数的操作方式与 errMsg()相似，只是还会终止程序
+// 其一，调用 exit()退出。其二，若将环境变量 EF_DUMPCORE 定义为非空字符串
 // 则调用 abort()退出，生成核心转储（core dump）文件，供调试器调试之用
 // 转储文件通常在进程工作目录
 void errExit(const char *format, ...) NORETURN ;
@@ -42,8 +41,8 @@ void errExit(const char *format, ...) NORETURN ;
 // 的刷新以及对退出处理程序（exit handler）的调用
 void err_exit(const char *format, ...) NORETURN ;
 
-// errExitEN()函数与 errExit()大体相同
-// 用于POSIX 线程函数
+// errExitEN()函数与 errExit()大体相同，区别仅仅在于：与 errExit()打印与当前
+// errno 值相对应的错误文本不同，errExitEN()只会打印与 errnum 参数中给定的错误号
 void errExitEN(int errnum, const char *format, ...) NORETURN ;
 
 // 这个函数基本上和使用printf没有太多不同，除了会自动追加换行符
@@ -60,4 +59,3 @@ void usageErr(const char *format, ...) NORETURN ;
 // 函数 cmdLineErr()酷似 usageErr()，但其错误诊断是针对于特定程序的命令行参数
 void cmdLineErr(const char *format, ...) NORETURN ;
 
-#endif
